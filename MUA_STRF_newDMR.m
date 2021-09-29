@@ -1,10 +1,17 @@
 %% Set parameters
 bat_list = {'Tb104'};
-times_location = ['U:\', bat_list, '\'];
+times_location = ['S:\Smotherman_Lab\Auditory cortex\',bat_list,'\Spiketimes\'];
 sr = 40000;
-channels_available = 32;
+channels_available = 3;
 save_path = 'C:\Users\kbakshi\Documents\Data\STRF Analysis\';
 shank_pos = xlsread('Shank Position.xlsx');
+
+strf_table(1,:) = {'Bat', 'Experimental_Site', 'RC_Location', 'Depth', 'Peak_Excitatory_Frequency',...
+    'Latency_At_Peak', 'Peak_Inhibitory_Frequency', 'Latency_At_Min', 'Peak_Firing_Rate',...
+    'Excitatory_Spectral_BW', 'Excitatory_Temporal_BW',...
+    'Inhibitory_Spectral_BW', 'Inhibitory_Temporal_BW', 'Spectral_max_MTF',...
+    'Temporal_max_MTF', 'Spectral_cutoff_MTF', 'Temporal_cutoff_MTF'};
+iter = 2;
 
 for bat_num = 1:numel(bat_list)
     site_number = 10;
@@ -15,8 +22,8 @@ for bat_num = 1:numel(bat_list)
         marker = importdata(strjoin(['S:\Smotherman_Lab\Auditory cortex\',string(bat_list(:,bat_num)),...
             '\Data\',string(bat_list(:,bat_num)),'_',num2str(site),'_marker_tc.mat'],''));
         for channel = 1:channels_available
-            spikes = readmatrix(...
-                [times_location,num2str(site),'_dmr_chn',num2str(channel),'_times.txt']);
+            spikes = readmatrix(strjoin(...
+                [times_location,num2str(site),'_dmr_chn',num2str(channel),'_times.txt'], ''));
             spikes = spikes(:,1);
             spikes(spikes < ts(1,1)) = [];
             spikes(spikes > ts(end,1)) = [];
@@ -33,6 +40,11 @@ for bat_num = 1:numel(bat_list)
             [col,row]=find(STA==max(STA(:)));
             latency=taxis(row);
             peak_freq=faxis(col)/1000;
+            [col,row]=find(STA==min(STA(:)));
+            min_peak_freq = faxis(col)/1000;
+            min_latency = taxis(row);
+            [e_spectralBW, e_temporalBW, i_spectralBW, i_temporalBW] = findSTRFbw(STA, taxis, faxis);
+
             %% Create STRF Figure
             [fig1, maxFR] = plotMuASTRF(STA, taxis, faxis, X, depth,...
                     latency, peak_freq, site, channel);
@@ -49,30 +61,13 @@ for bat_num = 1:numel(bat_list)
                 '\Site ',num2str(site),' Chn ',num2str(channel),' taxis'],''),...
                 'taxis')
             %% Generate modulation functions
-            MTF = fftshift(fft2(STA));
-            % find 0 modulation row and col index
-            spec0ind = ceil((size(MTF,1)+1)/2);
-            temp0ind = ceil((size(MTF,2)+1)/2);
-            % only use positive spectral modulation
-            MTF = MTF(spec0ind:end,:);
-            % find axis values
-            Xrange = diff(X(1:2))*length(X);
-            trange = diff(taxis(1:2))*length(taxis);
-            specmod = (0:size(MTF,1)-1)/Xrange; % cycles per octave
-            tempmod = (-(temp0ind-1):(temp0ind-1))/(trange/1000); % Hz
-            %% Generate modulation rate figures
-            figure;
-            fig1 = surface(tempmod,specmod,abs(MTF));
-            set(fig1, 'FaceColor','interp','EdgeColor','interp');
-            xlim([-100 100])
-            ylim([0 10])
-            ylim([0 5])
-            colorbar
-            colormap jet
-            title(['Site ',num2str(site), ' Chn ',num2str(channel),' MUA MTF'])
-            print(strjoin([save_path,string(bat_list(:,bat_num)),...
-                '\Site ',num2str(site),' Chn ',num2str(channel),' MTF'],''),...
-                '-dtiff')
+            [MTF, tempmod, specmod] = STRF2MTF(STA, taxis, X);
+            [fig2, specmod_max, tempmod_max, specmod_cut, tempmod_cut] = plotMTF(MTF, tempmod, specmod);
+            sgtitle(['Site ',num2str(site), ' Chn ',num2str(channel),' MUA MTF'], 'Fontweight', 'bold')
+            exportgraphics(fig2,...
+                strjoin([save_path,string(bat_list(:,bat_num)),...
+                '\Site ',num2str(site),' Chn ',num2str(channel),' MTF.jpg'],''),...
+                'Resolution', 300)
             save(strjoin([save_path,string(bat_list(:,bat_num)),...
                 '\Site ',num2str(site),' Chn ',num2str(channel),' MTF'],''),...
                 'MTF')
@@ -83,10 +78,25 @@ for bat_num = 1:numel(bat_list)
                 '\Site ',num2str(site),' Chn ',num2str(channel),' tempmod'],''),...
                 'tempmod')
             close all
+            
+            if channel < 17
+                RC = marker.rostro_caudal - 250;
+            else
+                RC = marker.rostro_caudal;
+            end
+            
+            strf_table(iter,:) = {bat_list(bat_num),...
+                ['Site ', num2str(site), 'Channel ', num2str(channel)],...
+                RC, depth, peak_freq, latency, min_peak_freq,...
+                min_latency, maxFR, e_spectralBW,...
+                e_temporalBW, i_spectralBW, i_temporalBW, specmod_max,...
+                tempmod_max, specmod_cut, tempmod_cut};
+            iter = iter+1;
         end
-        clearvars -except bat_list times_location sr cmap...
-            channels_available channel STRF_save_path MTF_save_path...
-            ts marker shank_pos d site bat_num cutoff
-    end
-    
+            clearvars -except bat_list times_location sr b a...
+                channels_available channel save_path...
+                ts marker shank_pos d site bat_num cutoff strf_table...
+                iter
+    end    
 end
+save([save_path, 'Tb104_STRF_data_full.mat'], 'strf_table')
