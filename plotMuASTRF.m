@@ -7,7 +7,7 @@ fig1 = figure('Color', 'w', 'Position', [30 50 1200 800]);
 ss = surface(taxis,X,STA);
 set(ss,'edgecolor','none');
 xlabel('Time (ms)')
-ylabel('Frequency (kHz)')
+ylabel('Frequency (Octaves)')
 xlim([0 200])
 ylim([0 max(X)])
 set(gca,'xdir','reverse');
