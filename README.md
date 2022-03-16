@@ -1,4 +1,6 @@
-# srtfAnalysis-new-dmr40TM
+# CODE NO LONGER MAINTAINED. PLEASE SEE 'bat_cortex_STRFs' repository for latest code version #
+
+srtfAnalysis-new-dmr40TM
 
 'MUA_STRF_newDMR.m' is the base script from which STRF generation can begin. This file references several other functions in the repository.
 
